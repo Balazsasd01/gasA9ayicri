@@ -1,7 +1,7 @@
 if (-not $args) {
     Write-Host ''
-    Write-Host 'Inditas: ' -NoNewline
-    Write-Host 'Szemelyre szabott Aktivator (Menuvel)' -ForegroundColor Green
+    Write-Host 'Need help? Check our homepage: ' -NoNewline
+    Write-Host 'https://massgrave.dev' -ForegroundColor Green
     Write-Host ''
 }
 
@@ -9,55 +9,51 @@ if (-not $args) {
     $psv = (Get-Host).Version.Major
     $troubleshoot = 'https://massgrave.dev/troubleshoot'
 
-    # Nyelvi mód ellenőrzése
     if ($ExecutionContext.SessionState.LanguageMode.value__ -ne 0) {
         $ExecutionContext.SessionState.LanguageMode
-        Write-Host "PowerShell nem fut teljes nyelvi módban (Full Language Mode)."
-        Write-Host "Segítség - https://gravesoft.dev/fix_powershell" -ForegroundColor White -BackgroundColor Blue
+        Write-Host "PowerShell is not running in Full Language Mode."
+        Write-Host "Help - https://gravesoft.dev/fix_powershell" -ForegroundColor White -BackgroundColor Blue
         return
     }
 
-    # .NET parancs betöltésének ellenőrzése
     try {
         [void][System.AppDomain]::CurrentDomain.GetAssemblies(); [void][System.Math]::Sqrt(144)
     }
     catch {
-        Write-Host "Hiba: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Host "A Powershell nem tudta betölteni a .NET parancsot."
-        Write-Host "Segítség - https://gravesoft.dev/in-place_repair_upgrade" -ForegroundColor White -BackgroundColor Blue
+        Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Powershell failed to load .NET command."
+        Write-Host "Help - https://gravesoft.dev/in-place_repair_upgrade" -ForegroundColor White -BackgroundColor Blue
         return
     }
 
-    # Harmadik féltől származó AV ellenőrzése
     function Check3rdAV {
         $cmd = if ($psv -ge 3) { 'Get-CimInstance' } else { 'Get-WmiObject' }
         $avList = & $cmd -Namespace root\SecurityCenter2 -Class AntiVirusProduct | Where-Object { $_.displayName -notlike '*windows*' } | Select-Object -ExpandProperty displayName
 
         if ($avList) {
-            Write-Host 'Harmadik féltől származó vírusirtó blokkolhatja a szkriptet - ' -ForegroundColor White -BackgroundColor Blue -NoNewline
+            Write-Host '3rd party Antivirus might be blocking the script - ' -ForegroundColor White -BackgroundColor Blue -NoNewline
             Write-Host " $($avList -join ', ')" -ForegroundColor DarkRed -BackgroundColor White
         }
     }
 
-    # Fájl ellenőrzése
     function CheckFile {
         param ([string]$FilePath)
         if (-not (Test-Path $FilePath)) {
             Check3rdAV
-            Write-Host "Nem sikerült létrehozni a CMD fájlt az ideiglenes mappában, megszakítás!"
-            Write-Host "Segítség - $troubleshoot" -ForegroundColor White -BackgroundColor Blue
+            Write-Host "Failed to create MAS file in temp folder, aborting!"
+            Write-Host "Help - $troubleshoot" -ForegroundColor White -BackgroundColor Blue
             throw
         }
     }
 
     try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-    # A TE CMD FÁJLOD CÍME
     $URLs = @(
-        'https://raw.githubusercontent.com/Balazsasd01/gasA9ayicri/refs/heads/main/windows.cmd'
+        'https://raw.githubusercontent.com/massgravel/Microsoft-Activation-Scripts/ab6b572af940fa0ea4255b327eb6f69a274d6725/MAS/All-In-One-Version-KL/MAS_AIO.cmd',
+        'https://dev.azure.com/massgrave/Microsoft-Activation-Scripts/_apis/git/repositories/Microsoft-Activation-Scripts/items?path=/MAS/All-In-One-Version-KL/MAS_AIO.cmd&versionType=Commit&version=ab6b572af940fa0ea4255b327eb6f69a274d6725',
+        'https://git.activated.win/massgrave/Microsoft-Activation-Scripts/raw/commit/ab6b572af940fa0ea4255b327eb6f69a274d6725/MAS/All-In-One-Version-KL/MAS_AIO.cmd'
     )
-    
-    Write-Progress -Activity "Letöltés..." -Status "Kérlek várj"
+    Write-Progress -Activity "Downloading..." -Status "Please wait"
     $errors = @()
     foreach ($URL in $URLs | Sort-Object { Get-Random }) {
         try {
@@ -74,48 +70,56 @@ if (-not $args) {
             $errors += $_
         }
     }
-    Write-Progress -Activity "Letöltés..." -Status "Kész" -Completed
+    Write-Progress -Activity "Downloading..." -Status "Done" -Completed
 
     if (-not $response) {
         Check3rdAV
         foreach ($err in $errors) {
-            Write-Host "Hiba: $($err.Exception.Message)" -ForegroundColor Red
+            Write-Host "Error: $($err.Exception.Message)" -ForegroundColor Red
         }
-        Write-Host "Nem sikerült letölteni a szkriptet, megszakítás!"
-        Write-Host "Ellenőrizd, hogy a vírusirtó vagy a tűzfal blokkolja-e a kapcsolatot."
-        Write-Host "Segítség - $troubleshoot" -ForegroundColor White -BackgroundColor Blue
+        Write-Host "Failed to retrieve MAS from any of the available repositories, aborting!"
+        Write-Host "Check if antivirus or firewall is blocking the connection."
+        Write-Host "Help - $troubleshoot" -ForegroundColor White -BackgroundColor Blue
         return
     }
 
-    # Integritás ellenőrzés kihagyva, mivel egyedi szkriptről van szó.
+    # Verify script integrity
+    $releaseHash = 'D60752A27BDED6887C5CEC88503F0F975ACB5BC849673693CA7BA7C95BCB3EF4'
+    $stream = New-Object IO.MemoryStream
+    $writer = New-Object IO.StreamWriter $stream
+    $writer.Write($response)
+    $writer.Flush()
+    $stream.Position = 0
+    $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($stream)) -replace '-'
+    if ($hash -ne $releaseHash) {
+        Write-Warning "Hash ($hash) mismatch, aborting!`nReport this issue at $troubleshoot"
+        $response = $null
+        return
+    }
 
-    # Autorun registry ellenőrzése
+    # Check for AutoRun registry which may create issues with CMD
     $paths = "HKCU:\SOFTWARE\Microsoft\Command Processor", "HKLM:\SOFTWARE\Microsoft\Command Processor"
     foreach ($path in $paths) { 
         if (Get-ItemProperty -Path $path -Name "Autorun" -ErrorAction SilentlyContinue) { 
-            Write-Warning "Autorun registryt találtunk, a CMD összeomolhat! `nManuálisan másold be az alábbi parancsot a javításhoz:`nRemove-ItemProperty -Path '$path' -Name 'Autorun'"
+            Write-Warning "Autorun registry found, CMD may crash! `nManually copy-paste the below command to fix...`nRemove-ItemProperty -Path '$path' -Name 'Autorun'"
         } 
     }
 
     $rand = [Guid]::NewGuid().Guid
     $isAdmin = [bool]([Security.Principal.WindowsIdentity]::GetCurrent().Groups -match 'S-1-5-32-544')
     $FilePath = if ($isAdmin) { "$env:SystemRoot\Temp\MAS_$rand.cmd" } else { "$env:USERPROFILE\AppData\Local\Temp\MAS_$rand.cmd" }
-    
-    # Fontos: ASCII kódolással mentjük
-    Set-Content -Path $FilePath -Value "@::: $rand `r`n$response" -Encoding Ascii
+    Set-Content -Path $FilePath -Value "@::: $rand `r`n$response"
     CheckFile $FilePath
 
     $env:ComSpec = "$env:SystemRoot\system32\cmd.exe"
     $chkcmd = & $env:ComSpec /c "echo CMD is working"
     if ($chkcmd -notcontains "CMD is working") {
-        Write-Warning "cmd.exe nem működik.`nReport this issue at $troubleshoot"
+        Write-Warning "cmd.exe is not working.`nReport this issue at $troubleshoot"
     }
-    
-    # FIGYELEM: NINCSENEK KEMÉNYEN KÓDOLT /Ohook /S ARGUMENTUMOK, ÍGY A MENÜ FOG MEGJELENNI!
 
     if ($psv -lt 3) {
         if (Test-Path "$env:SystemRoot\Sysnative") {
-            Write-Warning "A parancs x86 Powershell-el fut, indítsd x64 Powershell-el helyette..."
+            Write-Warning "Command is running with x86 Powershell, run it with x64 Powershell instead..."
             return
         }
         $p = saps -FilePath $env:ComSpec -ArgumentList "/c """"$FilePath"" -el -qedit $args""" -Verb RunAs -PassThru
